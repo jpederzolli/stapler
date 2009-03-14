@@ -37,10 +37,12 @@ abstract class AnnotationHandler<T extends Annotation> {
             String parse(HttpServletRequest request, Header a, String parameterName) throws ServletException {
                 String name = a.value();
                 if(name.length()==0)    name=parameterName;
+                if(name==null)
+                    throw new IllegalArgumentException("Parameter name unavailable neither in the code nor in annotation");
 
                 String value = request.getHeader(name);
-                if(a.required() && value!=null)
-                    throw new ServletException("Required HTTP header "+a.value()+" is missing");
+                if(a.required() && value==null)
+                    throw new ServletException("Required HTTP header "+name+" is missing");
 
                 return value;
             }
@@ -50,10 +52,12 @@ abstract class AnnotationHandler<T extends Annotation> {
             String parse(HttpServletRequest request, QueryParameter a, String parameterName) throws ServletException {
                 String name = a.value();
                 if(name.length()==0)    name=parameterName;
+                if(name==null)
+                    throw new IllegalArgumentException("Parameter name unavailable neither in the code nor in annotation");
                 
                 String value = request.getParameter(name);
-                if(a.required() && value!=null)
-                    throw new ServletException("Required Query parameter "+a.value()+" is missing");
+                if(a.required() && value==null)
+                    throw new ServletException("Required Query parameter "+name+" is missing");
 
                 return value;
             }

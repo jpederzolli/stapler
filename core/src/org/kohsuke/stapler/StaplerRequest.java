@@ -69,6 +69,18 @@ public interface StaplerRequest extends HttpServletRequest {
     RequestDispatcher getView(Object it,String viewName) throws IOException;
 
     /**
+     * Gets the {@link RequestDispatcher} that represents a specific view
+     * for the given class.
+     *
+     * <p>
+     * Unlike {@link #getView(Object, String)}, calling this request dispatcher
+     * doesn't set the "it" variable, so
+     * {@code getView(it.getClass(),viewName)} and {@code getView(it,viewName)}
+     * aren't the same thing.
+     */
+    RequestDispatcher getView(Class clazz,String viewName) throws IOException;
+
+    /**
      * Gets the part of the request URL from protocol up to the context path.
      * So typically it's something like <tt>http://foobar:8080/something</tt>
      */
@@ -356,7 +368,7 @@ public interface StaplerRequest extends HttpServletRequest {
     /**
      * Gets the content of the structured form submission.
      *
-     * See http://hudson.gotdns.com/wiki/display/HUDSON/Structured+Form+Submission
+     * @see <a href="http://hudson.gotdns.com/wiki/display/HUDSON/Structured+Form+Submission">Structured Form Submission</a>
      */
     JSONObject getSubmittedForm() throws ServletException;
 

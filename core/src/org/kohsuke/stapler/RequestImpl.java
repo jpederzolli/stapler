@@ -98,8 +98,16 @@ public class RequestImpl extends HttpServletRequestWrapper implements StaplerReq
     }
 
     public RequestDispatcher getView(Object it,String viewName) throws IOException {
+        return getView(it.getClass(),it,viewName);
+    }
+
+    public RequestDispatcher getView(Class clazz, String viewName) throws IOException {
+        return getView(clazz,null,viewName);
+    }
+
+    public RequestDispatcher getView(Class clazz, Object it, String viewName) throws IOException {
         for( Facet f : stapler.getWebApp().facets ) {
-            RequestDispatcher rd = f.createRequestDispatcher(this, it,viewName);
+            RequestDispatcher rd = f.createRequestDispatcher(this,clazz,it,viewName);
             if(rd!=null)
                 return rd;
         }
@@ -313,6 +321,7 @@ public class RequestImpl extends HttpServletRequestWrapper implements StaplerReq
                 throw new IllegalArgumentException("Class "+className+" is specified in JSON, but no such class found in "+cl,e);
             }
         }
+
         String[] names = loadConstructorParamNames(type);
 
         // the actual arguments to invoke the constructor with.
@@ -511,8 +520,32 @@ public class RequestImpl extends HttpServletRequestWrapper implements StaplerReq
                     // single value conversion
                     return bindJSON(type,j);
                 } else {
-                    // only one value given to the collection
-                    l.add(new TypePair(l.itemGenericType,l.itemType).convertJSON(j));
+                    if(j.has("stapler-class-bag")) {
+                        // this object is a hash from class names to their parameters
+                        // build them into a collection via Lister
+
+                        ClassLoader cl = stapler.getWebApp().getClassLoader();
+                        for (Map.Entry<String,Object> e : (Set<Map.Entry<String,Object>>)j.entrySet()) {
+                            Object v = e.getValue();
+
+                            String className = e.getKey().replace('-','.'); // decode JSON-safe class name escaping
+                            try {
+                                Class<?> itemType = cl.loadClass(className);
+                                if (v instanceof JSONObject) {
+                                    l.add(bindJSON(itemType, (JSONObject) v));
+                                }
+                                if (v instanceof JSONArray) {
+                                    for(Object i : bindJSONToList(itemType, (JSONArray) v))
+                                        l.add(i);
+                                }
+                            } catch (ClassNotFoundException e1) {
+                                // ignore unrecognized element
+                            }
+                        }
+                    } else {
+                        // only one value given to the collection
+                        l.add(new TypePair(l.itemGenericType,l.itemType).convertJSON(j));
+                    }
                     return l.toCollection();
                 }
             }
@@ -616,20 +649,27 @@ public class RequestImpl extends HttpServletRequestWrapper implements StaplerReq
         if(structuredForm==null) {
             String ct = getContentType();
             String p = null;
+            boolean isSubmission; // for error diagnosis, if something is submitted, set to true
 
             if(ct!=null && ct.startsWith("multipart/")) {
+                isSubmission=true;
                 parseMultipartFormData();
                 FileItem item = parsedFormData.get("json");
                 if(item!=null)
                     p = item.getString();
-            } else
+            } else {
                 p = getParameter("json");
+                isSubmission = !getParameterMap().isEmpty();
+            }
             
             if(p==null) {
                 // no data submitted
                 try {
                     StaplerResponse rsp = Stapler.getCurrentResponse();
-                    rsp.sendError(SC_BAD_REQUEST,"This page expects a form submission");
+                    if(isSubmission)
+                        rsp.sendError(SC_BAD_REQUEST,"This page expects a form submission");
+                    else
+                        rsp.sendError(SC_BAD_REQUEST,"Nothing is submitted");
                     rsp.getWriter().close();
                     throw new Error("This page expects a form submission");
                 } catch (IOException e) {
